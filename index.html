@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>オセロゲーム</title>
+  <style>
+    body {
+      background: #222;
+      color: #f3f3f3;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(8, 40px);
+      grid-template-rows: repeat(8, 40px);
+      gap: 2px;
+      margin: 20px auto;
+      width: max-content;
+      background: #006400;
+      border: 4px solid #333;
+    }
+    .cell {
+      width: 40px;
+      height: 40px;
+      background: #228B22;
+      border-radius: 5px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .cell:hover {
+      background: #2e8b57;
+    }
+    .stone {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .black {
+      background: #181818;
+    }
+    .white {
+      background: #f7f7f7;
+      border: 1.5px solid #bbb;
+    }
+    #info {
+      margin-top: 20px;
+      font-size: 1.2em;
+    }
+    #reset {
+      margin-top: 15px;
+      padding: 7px 18px;
+      font-size: 1em;
+      background: #006400;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #reset:hover {
+      background: #228B22;
+    }
+  </style>
+</head>
+<body>
+  <h1>オセロゲーム</h1>
+  <!-- ID属性を正しく指定 -->
+  <div id="board"></div>
+  <div id="info"></div>
+  <button id="reset">リセット</button>
+  
+  <script>
+    const SIZE = 8;
+    const EMPTY = 0, BLACK = 1, WHITE = 2;
+    
+    let board = [];
+    let currentPlayer = BLACK;
+    let gameEnded = false;
+    
+    // 方向ベクトル（8方向）の定義をカンマ区切りに修正
+    const directions = [
+      [-1, -1], [-1, 0], [-1, 1],
+      [0, -1],           [0, 1],
+      [1, -1],  [1, 0],  [1, 1]
+    ];
+    
+    // ボードを初期化する関数
+    function initBoard() {
+      board = [];
+      for (let y = 0; y < SIZE; y++) {
+        board[y] = [];
+        for (let x = 0; x < SIZE; x++) {
+          board[y][x] = EMPTY;
+        }
+      }
+      // 中央に初期の石を配置（通常オセロの配置）
+      const mid = SIZE / 2;
+      board[mid - 1][mid - 1] = WHITE;
+      board[mid - 1][mid]     = BLACK;
+      board[mid][mid - 1]     = BLACK;
+      board[mid][mid]         = WHITE;
+      gameEnded = false;
+      currentPlayer = BLACK;
+    }
+    
+    // 盤面を描画する関数
+    function drawBoard() {
+      const boardDiv = document.getElementById('board');
+      boardDiv.innerHTML = '';
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          // クリックイベントの登録（正しいメソッド名 addEventListener）
+          cell.addEventListener('click', () => handleClick(x, y));
+          if (board[y][x] !== EMPTY) {
+            const stone = document.createElement('div');
+            // クラス名のスペルミスを修正し、black/whiteの石を設定
+            stone.className = 'stone ' + (board[y][x] === BLACK ? 'black' : 'white');
+            cell.appendChild(stone);
+          }
+          boardDiv.appendChild(cell);
+        }
+      }
+      updateInfo();
+    }
+    
+    // 現在の状態（石の枚数と手番）を更新する関数
+    function updateInfo() {
+      let blackCount = 0, whiteCount = 0;
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          if (board[y][x] === BLACK) blackCount++;
+          else if (board[y][x] === WHITE) whiteCount++;
+        }
+      }
+      const info = document.getElementById('info');
+      if (gameEnded) {
+        let result = '';
+        if (blackCount > whiteCount) result = '黒の勝ち！';
+        else if (whiteCount > blackCount) result = '白の勝ち！';
+        else result = '引き分け！';
+        info.innerHTML = `終了<br>黒: ${blackCount} 白: ${whiteCount}<br>${result}`;
+      } else {
+        let turn = currentPlayer === BLACK ? '黒' : '白';
+        info.innerHTML = `黒: ${blackCount} 白: ${whiteCount} <br>次の手番: <b>${turn}</b>`;
+      }
+    }
+    
+    // クリック時の処理（関数名を handleClick に統一）
+    function handleClick(x, y) {
+      if (gameEnded) return;
+      if (!isValidMove(x, y, currentPlayer)) return;
+      placeStone(x, y, currentPlayer);
+      
+      // ターン交代
+      currentPlayer = 3 - currentPlayer;
+      
+      // 相手が置ける場所がない場合のパス判定
+      if (!hasValidMoves(currentPlayer)) {
+        if (hasValidMoves(3 - currentPlayer)) {
+          alert("パスします");
+          currentPlayer = 3 - currentPlayer;
+        } else {
+          gameEnded = true;
+        }
+      }
+      
+      drawBoard();
+    }
+    
+    // 指定位置に石が置けるかを判定する関数
+    function isValidMove(x, y, player) {
+      if (board[y][x] !== EMPTY) return false;
+      for (const [dx, dy] of directions) {
+        let nx = x + dx, ny = y + dy;
+        // 盤外は除外
+        if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+        // 隣接するマスが相手の石でなければならない
+        if (board[ny][nx] !== (3 - player)) continue;
+        // 相手の石が連続した後に自分の石があればOK
+        while (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE) {
+          nx += dx;
+          ny += dy;
+          if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) break;
+          if (board[ny][nx] === EMPTY) break;
+          if (board[ny][nx] === player) return true;
+        }
+      }
+      return false;
+    }
+    
+    // 石を置いてひっくり返す処理
+    function placeStone(x, y, player) {
+      board[y][x] = player;
+      for (const [dx, dy] of directions) {
+        let nx = x + dx, ny = y + dy;
+        let stonesToFlip = [];
+        // 隣接が盤内でかつ相手の石か確認
+        if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+        if (board[ny][nx] !== (3 - player)) continue;
+        
+        // その方向に連続する相手の石をリストアップ
+        while (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE) {
+          if (board[ny][nx] === (3 - player)) {
+            stonesToFlip.push([nx, ny]);
+          } else if (board[ny][nx] === player) {
+            // 自分の石で挟まれている場合にひっくり返す
+            for (const [fx, fy] of stonesToFlip) {
+              board[fy][fx] = player;
+            }
+            break;
+          } else {
+            break;
+          }
+          nx += dx;
+          ny += dy;
+        }
+      }
+    }
+    
+    // 指定プレイヤーが置ける場所があるか判定
+    function hasValidMoves(player) {
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          if (isValidMove(x, y, player)) return true;
+        }
+      }
+      return false;
+    }
+    
+    // リセットボタンのイベント登録（関数名のスペルを修正）
+    document.getElementById('reset').onclick = () => {
+      initBoard();
+      drawBoard();
+    };
+    
+    // 初期化と初描画
+    initBoard();
+    drawBoard();
+  </script>
+</body>
+</html>
